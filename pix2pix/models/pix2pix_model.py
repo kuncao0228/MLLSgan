@@ -1,6 +1,7 @@
 import torch
 from .base_model import BaseModel
 from . import networks
+import pdb
 
 
 class Pix2PixModel(BaseModel):
@@ -81,6 +82,9 @@ class Pix2PixModel(BaseModel):
         AtoB = self.opt.direction == 'AtoB'
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
+        self.txt = input['text']
+        print(A_path, text)
+        pdb.set_trace()
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
