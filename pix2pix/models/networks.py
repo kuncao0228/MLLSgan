@@ -337,40 +337,88 @@ class ResnetGenerator(nn.Module):
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
 
-        model = [nn.ReflectionPad2d(3),
+        self.model1 = [nn.ReflectionPad2d(3),
                  nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
                  norm_layer(ngf),
                  nn.ReLU(True)]
 
         n_downsampling = 2
+        
+        model2 = []
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
-            model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+            model2 += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
                       norm_layer(ngf * mult * 2),
                       nn.ReLU(True)]
+            
+        self.model2 = model2
+
+        model3 = []
 
         mult = 2 ** n_downsampling
         for i in range(n_blocks):       # add ResNet blocks
 
-            model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+            model3 += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+            
+        self.model3 = model3
+
+        model4 = []
 
         for i in range(n_downsampling):  # add upsampling layers
             mult = 2 ** (n_downsampling - i)
-            model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+            model4 += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
                                          kernel_size=3, stride=2,
                                          padding=1, output_padding=1,
                                          bias=use_bias),
                       norm_layer(int(ngf * mult / 2)),
                       nn.ReLU(True)]
-        model += [nn.ReflectionPad2d(3)]
-        model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
-        model += [nn.Tanh()]
+        model4 += [nn.ReflectionPad2d(3)]
+        model4 += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+        model4 += [nn.Tanh()]
 
-        self.model = nn.Sequential(*model)
+        self.model1 = nn.Sequential(*self.model1)
+        self.model2 = nn.Sequential(*model2)
+        self.model3 = nn.Sequential(*model3)
+        self.model4 = nn.Sequential(*model4)
+        
+        model_recon = []
+        model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
+                      norm_layer(ngf * mult * 2),
+                      nn.ReLU(True)]
+        model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
+                      norm_layer(ngf * mult * 2),
+                      nn.ReLU(True)]
+        model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
+                      norm_layer(ngf * mult * 2),
+                      nn.ReLU(True)]
+        
+        self.model_recon = nn.Sequential(*model_recon)
+        self.fc = nn.Linear(256 * 7 * 7, 100)
+        
+        
 
     def forward(self, input):
         """Standard forward"""
-        return self.model(input)
+        
+        # print("hi")
+        
+        x = self.model1(input)
+        # print(x.size())
+        x2 = self.model2(x)
+        # print(x.size())
+        x = self.model3(x2)
+        # print(x.size())
+        x = self.model4(x)
+        # print(x.size())
+        
+        # print(x2.size())
+        recon = self.model_recon(x2)
+        # print(recon.size())
+        recon = recon.view(-1, 256 * 7 * 7)
+        recon = self.fc(recon)
+        # print(recon.size())
+        
+        return x, recon
 
 
 class ResnetBlock(nn.Module):
