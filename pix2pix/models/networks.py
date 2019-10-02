@@ -330,74 +330,133 @@ class ResnetGenerator(nn.Module):
             n_blocks (int)      -- the number of ResNet blocks
             padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
         """
-        assert(n_blocks >= 0)
-        super(ResnetGenerator, self).__init__()
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
+        
+        rgb_to_gray = 0
+        
+        if rgb_to_gray == 1:
+        
+            assert(n_blocks >= 0)
+            super(ResnetGenerator, self).__init__()
+            if type(norm_layer) == functools.partial:
+                use_bias = norm_layer.func == nn.InstanceNorm2d
+            else:
+                use_bias = norm_layer == nn.InstanceNorm2d
+
+            self.model1 = [nn.ReflectionPad2d(3),
+                    nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
+                    norm_layer(ngf),
+                    nn.ReLU(True)]
+
+            n_downsampling = 2
+            
+            model2 = []
+            for i in range(n_downsampling):  # add downsampling layers
+                mult = 2 ** i
+                model2 += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+                        norm_layer(ngf * mult * 2),
+                        nn.ReLU(True)]
+                
+            self.model2 = model2
+
+            model3 = []
+
+            mult = 2 ** n_downsampling
+            for i in range(n_blocks):       # add ResNet blocks
+
+                model3 += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+                
+            self.model3 = model3
+
+            model4 = []
+
+            for i in range(n_downsampling):  # add upsampling layers
+                mult = 2 ** (n_downsampling - i)
+                model4 += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+                                            kernel_size=3, stride=2,
+                                            padding=1, output_padding=1,
+                                            bias=use_bias),
+                        norm_layer(int(ngf * mult / 2)),
+                        nn.ReLU(True)]
+            model4 += [nn.ReflectionPad2d(3)]
+            model4 += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+            model4 += [nn.Tanh()]
+
+            self.model1 = nn.Sequential(*self.model1)
+            self.model2 = nn.Sequential(*model2)
+            self.model3 = nn.Sequential(*model3)
+            self.model4 = nn.Sequential(*model4)
+            
+            model_recon = []
+            model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
+                        norm_layer(ngf * mult * 2),
+                        nn.ReLU(True)]
+            model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
+                        norm_layer(ngf * mult * 2),
+                        nn.ReLU(True)]
+            model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
+                        norm_layer(ngf * mult * 2),
+                        nn.ReLU(True)]
+            
+            self.model_recon = nn.Sequential(*model_recon)
+            self.fc = nn.Linear(256 * 7 * 7, 100)
+            
         else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-
-        self.model1 = [nn.ReflectionPad2d(3),
-                 nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
-                 norm_layer(ngf),
-                 nn.ReLU(True)]
-
-        n_downsampling = 2
         
-        model2 = []
-        for i in range(n_downsampling):  # add downsampling layers
-            mult = 2 ** i
-            model2 += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                      norm_layer(ngf * mult * 2),
-                      nn.ReLU(True)]
+            assert(n_blocks >= 0)
+            super(ResnetGenerator, self).__init__()
+            if type(norm_layer) == functools.partial:
+                use_bias = norm_layer.func == nn.InstanceNorm2d
+            else:
+                use_bias = norm_layer == nn.InstanceNorm2d
+
+            self.model1 = [nn.ReflectionPad2d(3),
+                    nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
+                    norm_layer(ngf),
+                    nn.ReLU(True)]
+
+            n_downsampling = 2
             
-        self.model2 = model2
+            model2 = []
+            for i in range(n_downsampling):  # add downsampling layers
+                mult = 2 ** i
+                model2 += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+                        norm_layer(ngf * mult * 2),
+                        nn.ReLU(True)]
+                
+            self.model2 = model2
 
-        model3 = []
+            model3 = []
 
-        mult = 2 ** n_downsampling
-        for i in range(n_blocks):       # add ResNet blocks
+            mult = 2 ** n_downsampling
+            for i in range(n_blocks):       # add ResNet blocks
 
-            model3 += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+                model3 += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+                
+            self.model3 = model3
+
+            model4 = []
+
+            for i in range(n_downsampling):  # add upsampling layers
+                mult = 2 ** (n_downsampling - i)
+                model4 += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+                                            kernel_size=3, stride=2,
+                                            padding=1, output_padding=1,
+                                            bias=use_bias),
+                        norm_layer(int(ngf * mult / 2)),
+                        nn.ReLU(True)]
+            model4 += [nn.ReflectionPad2d(3)]
+            model4 += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+            model4 += [nn.Tanh()]
+
+            self.model1 = nn.Sequential(*self.model1)
+            self.model2 = nn.Sequential(*model2)
+            self.model3 = nn.Sequential(*model3)
+            self.model4 = nn.Sequential(*model4)
             
-        self.model3 = model3
+            self.txt_encoder_1 = nn.LSTM(100, 512, bidirection=True)
+            self.txt_encoder_2 = nn.LSTM(512, 512, bidirection=True)
 
-        model4 = []
-
-        for i in range(n_downsampling):  # add upsampling layers
-            mult = 2 ** (n_downsampling - i)
-            model4 += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
-                                         kernel_size=3, stride=2,
-                                         padding=1, output_padding=1,
-                                         bias=use_bias),
-                      norm_layer(int(ngf * mult / 2)),
-                      nn.ReLU(True)]
-        model4 += [nn.ReflectionPad2d(3)]
-        model4 += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
-        model4 += [nn.Tanh()]
-
-        self.model1 = nn.Sequential(*self.model1)
-        self.model2 = nn.Sequential(*model2)
-        self.model3 = nn.Sequential(*model3)
-        self.model4 = nn.Sequential(*model4)
-        
-        model_recon = []
-        model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
-                      norm_layer(ngf * mult * 2),
-                      nn.ReLU(True)]
-        model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
-                      norm_layer(ngf * mult * 2),
-                      nn.ReLU(True)]
-        model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
-                      norm_layer(ngf * mult * 2),
-                      nn.ReLU(True)]
-        
-        self.model_recon = nn.Sequential(*model_recon)
-        self.fc = nn.Linear(256 * 7 * 7, 100)
-        
-        
-
-    def forward(self, input):
+    def forward(self, input, txt):
         """Standard forward"""
         
         # print("hi")
@@ -411,14 +470,47 @@ class ResnetGenerator(nn.Module):
         x = self.model4(x)
         # print(x.size())
         
-        # print(x2.size())
-        recon = self.model_recon(x2)
-        # print(recon.size())
-        recon = recon.view(-1, 256 * 7 * 7)
-        recon = self.fc(recon)
-        # print(recon.size())
+        txt_data = txt
+        txt_len = 100
+
+        hi_f = torch.zeros(txt_data.size(1), 512, device=txt_data.device)
+        hi_b = torch.zeros(txt_data.size(1), 512, device=txt_data.device)
+        h_f = []
+        h_b = []
+        mask = []
+        for i in range(txt_data.size(0)):
+            
+            # mask_i = (txt_data.size(0) - 1 - i < txt_len)
+            # print(mask_i)
+            # mask_i = 1
+            
+            # mask_i = mask_i.unsqueeze(1)
+            
+            # mask.append(mask_i)
+            
+            hi_f = self.txt_encoder_f(txt_data[i], hi_f)
+            h_f.append(hi_f)
+            
+            # hi_b = mask_i * self.txt_encoder_b(txt_data[-i - 1], hi_b) + (1 - mask_i) * hi_b
+            h_b.append(hi_b)
+            
+        mask = torch.stack(mask[::-1])
+        h_f = torch.stack(h_f) * mask
+        h_b = torch.stack(h_b[::-1])
+        h = (h_f + h_b) / 2
         
-        return x, recon
+        cond = h.sum(0) / mask.sum(0)
+        z_mean = self.mu(cond)
+        z_log_stddev = self.log_sigma(cond)
+        z = torch.randn(cond.size(0), 128, device=txt_data.device)
+        cond = z_mean + z_log_stddev.exp() * z
+
+        # residual blocks
+        cond = cond.unsqueeze(-1).unsqueeze(-1)
+        print(cond.size())
+        # merge = self.residual_blocks(torch.cat((e, cond.repeat(1, 1, e.size(2), e.size(3))), 1))
+        
+        return x
 
 
 class ResnetBlock(nn.Module):

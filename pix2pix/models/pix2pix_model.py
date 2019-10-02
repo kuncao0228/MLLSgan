@@ -100,8 +100,8 @@ class Pix2PixModel(BaseModel):
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         #mlls
-        self.fake_B, self.fake_txt = self.netG(self.real_A)  # G(A)
-        # self.fake_B = self.netG(self.real_A) 
+        # self.fake_B, self.fake_txt = self.netG(self.real_A, self.txt)  # G(A)
+        self.fake_B = self.netG(self.real_A, self.txt) 
 
     def backward_D(self):
         """Calculate GAN loss for the discriminator"""
@@ -138,11 +138,12 @@ class Pix2PixModel(BaseModel):
         # print(self.fake_txt.size())
         # print(self.txt.size())
         
-        self.loss_G_CS = 1 - self.criterionCS(self.fake_txt, self.txt) 
+        #mlls
+        # self.loss_G_CS = 1 - self.criterionCS(self.fake_txt, self.txt) 
         # print(self.loss_G_CS)
         
         # combine loss and calculate gradients mlls
-        self.loss_G = self.loss_G_GAN + self.loss_G_L1 + self.loss_G_CS
+        self.loss_G = self.loss_G_GAN + self.loss_G_L1 #+ self.loss_G_CS
         self.loss_G.backward()
 
     def optimize_parameters(self):
