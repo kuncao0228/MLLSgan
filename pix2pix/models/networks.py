@@ -116,7 +116,7 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     return net
 
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
+def define_G(flag, input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
     """Create a generator
 
     Parameters:
@@ -147,13 +147,13 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     norm_layer = get_norm_layer(norm_type=norm)
 
     if netG == 'resnet_9blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
+        net = ResnetGenerator(flag, input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_6blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
+        net = ResnetGenerator(flag, input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
     elif netG == 'unet_128':
-        net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+        net = UnetGenerator(flag, input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
-        net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+        net = UnetGenerator(flag, input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -318,7 +318,7 @@ class ResnetGenerator(nn.Module):
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
     """
 
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect'):
+    def __init__(self, flag, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect'):
         """Construct a Resnet-based generator
 
         Parameters:
@@ -331,9 +331,11 @@ class ResnetGenerator(nn.Module):
             padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
         """
         
-        rgb_to_gray = 0
+        self.model_recon = []
         
-        if rgb_to_gray == 1:
+        if flag == 'decode':
+            
+            print("Decoding")
         
             assert(n_blocks >= 0)
             super(ResnetGenerator, self).__init__()
@@ -400,7 +402,9 @@ class ResnetGenerator(nn.Module):
             self.model_recon = nn.Sequential(*model_recon)
             self.fc = nn.Linear(256 * 7 * 7, 100)
             
-        else:
+        elif flag == 'encode':
+            
+            print("Encoding")
         
             assert(n_blocks >= 0)
             super(ResnetGenerator, self).__init__()
@@ -438,12 +442,21 @@ class ResnetGenerator(nn.Module):
 
             for i in range(n_downsampling):  # add upsampling layers
                 mult = 2 ** (n_downsampling - i)
-                model4 += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+                
+                if i == 0:
+                    model4 += [nn.ConvTranspose2d(320, int(ngf * mult / 2),
                                             kernel_size=3, stride=2,
                                             padding=1, output_padding=1,
                                             bias=use_bias),
                         norm_layer(int(ngf * mult / 2)),
                         nn.ReLU(True)]
+                else:
+                    model4 += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+                                                kernel_size=3, stride=2,
+                                                padding=1, output_padding=1,
+                                                bias=use_bias),
+                            norm_layer(int(ngf * mult / 2)),
+                            nn.ReLU(True)]
             model4 += [nn.ReflectionPad2d(3)]
             model4 += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
             model4 += [nn.Tanh()]
@@ -453,65 +466,50 @@ class ResnetGenerator(nn.Module):
             self.model3 = nn.Sequential(*model3)
             self.model4 = nn.Sequential(*model4)
             
-            self.txt_encoder_1 = nn.LSTM(100, 512, bidirection=True)
-            self.txt_encoder_2 = nn.LSTM(512, 512, bidirection=True)
+            # self.txt_encoder_1 = nn.LSTM(100, 512, bidirection=True)
+            # self.txt_encoder_2 = nn.LSTM(512, 512, bidirection=True)
+            self.relu = nn.ReLU()
+            self.fc1 = nn.Linear(100, 512)
+            self.fc2 = nn.Linear(512, 512)
+            self.fc3 = nn.Linear(512, 64)
 
-    def forward(self, input, txt):
+    def forward(self, input, txt, flag='encode'):
         """Standard forward"""
         
-        # print("hi")
+        if flag == 'encode':
         
-        x = self.model1(input)
-        # print(x.size())
-        x2 = self.model2(x)
-        # print(x.size())
-        x = self.model3(x2)
-        # print(x.size())
-        x = self.model4(x)
-        # print(x.size())
-        
-        txt_data = txt
-        txt_len = 100
+            x = self.model1(input)
+            x2 = self.model2(x)
+            x3 = self.model3(x2)
+            
+            txt_data = txt
+            y = self.relu(self.fc1(txt))
+            y = self.relu(self.fc2(y))
+            y = self.relu(self.fc3(y))
+            
+            y = y.view(1, 64, 1, 1)
+            y = y.repeat(1, 1, x3.size(2), x3.size(3))
+            
+            merge = torch.cat((x3, y), 1)
 
-        hi_f = torch.zeros(txt_data.size(1), 512, device=txt_data.device)
-        hi_b = torch.zeros(txt_data.size(1), 512, device=txt_data.device)
-        h_f = []
-        h_b = []
-        mask = []
-        for i in range(txt_data.size(0)):
+            x = self.model4(merge)
             
-            # mask_i = (txt_data.size(0) - 1 - i < txt_len)
-            # print(mask_i)
-            # mask_i = 1
+            return x
             
-            # mask_i = mask_i.unsqueeze(1)
+        elif flag == 'decode':
             
-            # mask.append(mask_i)
+            x = self.model1(input)
+            x2 = self.model2(x)
+            x3 = self.model3(x2)
             
-            hi_f = self.txt_encoder_f(txt_data[i], hi_f)
-            h_f.append(hi_f)
+            x = self.model4(x3)
             
-            # hi_b = mask_i * self.txt_encoder_b(txt_data[-i - 1], hi_b) + (1 - mask_i) * hi_b
-            h_b.append(hi_b)
+            recon = self.model_recon(x2)
             
-        mask = torch.stack(mask[::-1])
-        h_f = torch.stack(h_f) * mask
-        h_b = torch.stack(h_b[::-1])
-        h = (h_f + h_b) / 2
-        
-        cond = h.sum(0) / mask.sum(0)
-        z_mean = self.mu(cond)
-        z_log_stddev = self.log_sigma(cond)
-        z = torch.randn(cond.size(0), 128, device=txt_data.device)
-        cond = z_mean + z_log_stddev.exp() * z
-
-        # residual blocks
-        cond = cond.unsqueeze(-1).unsqueeze(-1)
-        print(cond.size())
-        # merge = self.residual_blocks(torch.cat((e, cond.repeat(1, 1, e.size(2), e.size(3))), 1))
-        
-        return x
-
+            recon = recon.view(-1, 256 * 7 * 7)
+            recon = self.fc(recon)
+            
+            return x, recon
 
 class ResnetBlock(nn.Module):
     """Define a Resnet block"""
