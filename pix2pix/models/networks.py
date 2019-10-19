@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
+import tagan_model 
 
 
 ###############################################################################
@@ -154,6 +155,9 @@ def define_G(flag, input_nc, output_nc, ngf, netG, norm='batch', use_dropout=Fal
         net = UnetGenerator(flag, input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
         net = UnetGenerator(flag, input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+    elif netG == 'tagan_128':
+        net = tagan_model.TAGAN_G()
+        
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -400,7 +404,7 @@ class ResnetGenerator(nn.Module):
                         nn.ReLU(True)]
             
             self.model_recon = nn.Sequential(*model_recon)
-            self.fc = nn.Linear(256 * 3 * 3, 100) #nn.Linear(256 * 7 * 7, 100)
+            self.fc = nn.Linear(256 * 3 * 3, 300) #nn.Linear(256 * 7 * 7, 100)
             
         elif flag == 'encode':
             
