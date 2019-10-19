@@ -190,7 +190,6 @@ class CycleGANModel(BaseModel):
 
     def backward_D_TA(self):#To be changed
         """Calculate GAN loss for discriminator D_B"""
-        fake_text = self.fake_text_pool.query(self.fake_T_B)
         fake_image = self.fake_B_pool.query(self.fake_B)
         self.loss_D_T = self.backward_D_TA(self.netD_TA, (self.real_B ,self.real_T_B, self.text_length),\
                             (fake_image, self.real_T_B, self.text_length), (self.real_B, self.text_B_wrong, self.text_length))

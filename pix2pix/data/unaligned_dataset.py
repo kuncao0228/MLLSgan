@@ -3,7 +3,7 @@ from data.base_dataset import BaseDataset, get_transform
 from data.image_folder import make_dataset
 from PIL import Image
 import random
-import json
+import pickle
 
 
 class UnalignedDataset(BaseDataset):
@@ -32,9 +32,9 @@ class UnalignedDataset(BaseDataset):
         self.embed_data_A = None
         self.embed_data_B = None
         with open(self.dir_A+'/embed.txt', 'r') as file: # change with proper file name
-            self.embed_data_A = json.loads(file.read())
+            self.embed_data_A = pickle.load(file)
         with open(self.dir_B+'/embed.txt', 'r') as file: # change with proper file name
-            self.embed_data_B = json.loads(file.read())
+            self.embed_data_B = pickle.load(file)
         self.A_size = len(self.A_paths)  # get the size of dataset A
         self.B_size = len(self.B_paths)  # get the size of dataset B
         btoA = self.opt.direction == 'BtoA'
