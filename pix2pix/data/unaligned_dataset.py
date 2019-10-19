@@ -31,9 +31,9 @@ class UnalignedDataset(BaseDataset):
         self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
         self.embed_data_A = None
         self.embed_data_B = None
-        with open(self.dir_A+'/embed.txt', 'r') as file: # change with proper file name
+        with open(self.dir_A+'/embed.pkl', 'r') as file: # change with proper file name
             self.embed_data_A = pickle.load(file)
-        with open(self.dir_B+'/embed.txt', 'r') as file: # change with proper file name
+        with open(self.dir_B+'/embed.pkl', 'r') as file: # change with proper file name
             self.embed_data_B = pickle.load(file)
         self.A_size = len(self.A_paths)  # get the size of dataset A
         self.B_size = len(self.B_paths)  # get the size of dataset B
