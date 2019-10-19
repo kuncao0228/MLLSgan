@@ -3,6 +3,7 @@ from data.base_dataset import BaseDataset, get_transform
 from data.image_folder import make_dataset
 from PIL import Image
 import random
+import json
 
 
 class UnalignedDataset(BaseDataset):
@@ -28,6 +29,12 @@ class UnalignedDataset(BaseDataset):
 
         self.A_paths = sorted(make_dataset(self.dir_A, opt.max_dataset_size))   # load images from '/path/to/data/trainA'
         self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
+        self.embed_data_A = None
+        self.embed_data_B = None
+        with open(self.dir_A+'/embed.txt', 'r') as file: # change with proper file name
+            self.embed_data_A = json.loads(file.read())
+        with open(self.dir_B+'/embed.txt', 'r') as file: # change with proper file name
+            self.embed_data_B = json.loads(file.read())
         self.A_size = len(self.A_paths)  # get the size of dataset A
         self.B_size = len(self.B_paths)  # get the size of dataset B
         btoA = self.opt.direction == 'BtoA'
@@ -54,13 +61,22 @@ class UnalignedDataset(BaseDataset):
         else:   # randomize the index for domain B to avoid fixed pairs.
             index_B = random.randint(0, self.B_size - 1)
         B_path = self.B_paths[index_B]
+        text_A = self.embed_data_A[A_path.split("/")[-1]] # change to for a and b
+        text_B = self.embed_data_B[B_path.split("/")[-1]] # change to for a and b
+        text_B_wrong = text_B.copy()
+
+        while np.array_equal(text_B, text_B_wrong):
+            index_B = (index_B + 1)%self.B_size
+            B_path_wrong = self.B_paths[index_B]
+            text_B_wrong = self.embed_data_B[B_path_wrong.split("/")[-1]]
+
         A_img = Image.open(A_path).convert('RGB')
         B_img = Image.open(B_path).convert('RGB')
         # apply image transformation
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)
 
-        return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path}
+        return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path,  'text_A':text_A, 'text_B':text_B, 'text_B_wrong': text_B_wrong}
 
     def __len__(self):
         """Return the total number of images in the dataset.

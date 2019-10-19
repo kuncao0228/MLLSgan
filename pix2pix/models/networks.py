@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
-
+import new_discriminators
 
 ###############################################################################
 # Helper Functions
@@ -198,6 +198,10 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
         net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer)
     elif netD == 'pixel':     # classify if each pixel is real or fake
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
+    elif netD == 'Text_Adaptive':
+        net = TAGAN_Discriminator()
+    elif netD == 'Text':
+        net = TextDiscriminator()
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -330,13 +334,13 @@ class ResnetGenerator(nn.Module):
             n_blocks (int)      -- the number of ResNet blocks
             padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
         """
-        
+
         self.model_recon = []
-        
+
         if flag == 'decode':
-            
+
             print("Decoding")
-        
+
             assert(n_blocks >= 0)
             super(ResnetGenerator, self).__init__()
             if type(norm_layer) == functools.partial:
@@ -350,14 +354,14 @@ class ResnetGenerator(nn.Module):
                     nn.ReLU(True)]
 
             n_downsampling = 2
-            
+
             model2 = []
             for i in range(n_downsampling):  # add downsampling layers
                 mult = 2 ** i
                 model2 += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
                         norm_layer(ngf * mult * 2),
                         nn.ReLU(True)]
-                
+
             self.model2 = model2
 
             model3 = []
@@ -366,7 +370,7 @@ class ResnetGenerator(nn.Module):
             for i in range(n_blocks):       # add ResNet blocks
 
                 model3 += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
-                
+
             self.model3 = model3
 
             model4 = []
@@ -387,7 +391,7 @@ class ResnetGenerator(nn.Module):
             self.model2 = nn.Sequential(*model2)
             self.model3 = nn.Sequential(*model3)
             self.model4 = nn.Sequential(*model4)
-            
+
             model_recon = []
             model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
                         norm_layer(ngf * mult * 2),
@@ -398,14 +402,14 @@ class ResnetGenerator(nn.Module):
             model_recon += [nn.Conv2d(256, 256, kernel_size=5, stride=2, padding=1, bias=use_bias),
                         norm_layer(ngf * mult * 2),
                         nn.ReLU(True)]
-            
+
             self.model_recon = nn.Sequential(*model_recon)
             self.fc = nn.Linear(256 * 3 * 3, 100) #nn.Linear(256 * 7 * 7, 100)
-            
+
         elif flag == 'encode':
-            
+
             print("Encoding")
-        
+
             assert(n_blocks >= 0)
             super(ResnetGenerator, self).__init__()
             if type(norm_layer) == functools.partial:
@@ -419,14 +423,14 @@ class ResnetGenerator(nn.Module):
                     nn.ReLU(True)]
 
             n_downsampling = 2
-            
+
             model2 = []
             for i in range(n_downsampling):  # add downsampling layers
                 mult = 2 ** i
                 model2 += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
                         norm_layer(ngf * mult * 2),
                         nn.ReLU(True)]
-                
+
             self.model2 = model2
 
             model3 = []
@@ -435,14 +439,14 @@ class ResnetGenerator(nn.Module):
             for i in range(n_blocks):       # add ResNet blocks
 
                 model3 += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
-                
+
             self.model3 = model3
 
             model4 = []
 
             for i in range(n_downsampling):  # add upsampling layers
                 mult = 2 ** (n_downsampling - i)
-                
+
                 if i == 0:
                     model4 += [nn.ConvTranspose2d(320, int(ngf * mult / 2),
                                             kernel_size=3, stride=2,
@@ -465,7 +469,7 @@ class ResnetGenerator(nn.Module):
             self.model2 = nn.Sequential(*model2)
             self.model3 = nn.Sequential(*model3)
             self.model4 = nn.Sequential(*model4)
-            
+
             # self.txt_encoder_1 = nn.LSTM(100, 512, bidirection=True)
             # self.txt_encoder_2 = nn.LSTM(512, 512, bidirection=True)
             self.relu = nn.ReLU()
@@ -475,41 +479,41 @@ class ResnetGenerator(nn.Module):
 
     def forward(self, input, txt, flag='encode'):
         """Standard forward"""
-        
+
         if flag == 'encode':
-        
+
             x = self.model1(input)
             x2 = self.model2(x)
             x3 = self.model3(x2)
-            
+
             txt_data = txt
             y = self.relu(self.fc1(txt))
             y = self.relu(self.fc2(y))
             y = self.relu(self.fc3(y))
-            
+
             y = y.view(1, 64, 1, 1)
             y = y.repeat(1, 1, x3.size(2), x3.size(3))
-            
+
             merge = torch.cat((x3, y), 1)
 
             x = self.model4(merge)
-            
+
             return x
-            
+
         elif flag == 'decode':
-            
+
             x = self.model1(input)
             x2 = self.model2(x)
             x3 = self.model3(x2)
-            
+
             x = self.model4(x3)
-            
+
             recon = self.model_recon(x2)
-            
+
             # print(recon.size())
             recon = recon.view(-1, 256 * 3 * 3) #recon.view(-1, 256 * 7 * 7)
             recon = self.fc(recon)
-            
+
             return x, recon
 
 class ResnetBlock(nn.Module):

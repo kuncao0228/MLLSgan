@@ -31,8 +31,8 @@ class TextDiscriminator(nn.Module):
     def forward(self, text):
         score = self.model(text)
         return score
-    
-    
+
+
 class TAGAN_Discriminator(nn.Module):
     def __init__(self):
         super(TAGAN_Discriminator, self).__init__()
@@ -152,24 +152,18 @@ class TAGAN_Discriminator(nn.Module):
         u = (h_f + h_b) / 2
         m = u.sum(0) / mask.sum(0)
         return u, m, mask
-    
-    
-
-img = torch.randn(4, 3, 128, 128).cuda() #batch x channel x w x h
-text = torch.randn(5, 4, 100).cuda() #vocab size x batch x embed size
-len_txt = torch.ones(4).cuda() #no. of words per batch
-
-# txt_m = torch.cat((txt[:, -1, :].unsqueeze(1), txt[:, :-1, :]), 1)
-# len_txt_m = torch.cat((len_txt[-1].unsqueeze(0), len_txt[:-1]))
-
-D = TAGAN_Discriminator()
-D = D.cuda()
-
-x, y = D(img , text, len_txt)
-
-print(x, y)
 
 
-
-
-    
+# img = torch.randn(4, 3, 128, 128).cuda() #batch x channel x w x h
+# text = torch.randn(5, 4, 100).cuda() #vocab size x batch x embed size
+# len_txt = torch.ones(4).cuda() #no. of words per batch
+#
+# # txt_m = torch.cat((txt[:, -1, :].unsqueeze(1), txt[:, :-1, :]), 1)
+# # len_txt_m = torch.cat((len_txt[-1].unsqueeze(0), len_txt[:-1]))
+#
+# D = TAGAN_Discriminator()
+# D = D.cuda()
+#
+# x, y = D(img , text, len_txt)
+#
+# print(x, y)
