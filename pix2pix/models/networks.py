@@ -400,7 +400,7 @@ class ResnetGenerator(nn.Module):
                         nn.ReLU(True)]
             
             self.model_recon = nn.Sequential(*model_recon)
-            self.fc = nn.Linear(256 * 7 * 7, 100)
+            self.fc = nn.Linear(256 * 3 * 3, 100) #nn.Linear(256 * 7 * 7, 100)
             
         elif flag == 'encode':
             
@@ -506,7 +506,8 @@ class ResnetGenerator(nn.Module):
             
             recon = self.model_recon(x2)
             
-            recon = recon.view(-1, 256 * 7 * 7)
+            # print(recon.size())
+            recon = recon.view(-1, 256 * 3 * 3) #recon.view(-1, 256 * 7 * 7)
             recon = self.fc(recon)
             
             return x, recon
