@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import init
+import numpy as np
 
 def init_weights(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -29,8 +30,8 @@ class TextDiscriminator(nn.Module):
 
     def forward(self, text):
         score = self.model(text)
-
         return score
+    
     
 class TAGAN_Discriminator(nn.Module):
     def __init__(self):
@@ -152,4 +153,23 @@ class TAGAN_Discriminator(nn.Module):
         m = u.sum(0) / mask.sum(0)
         return u, m, mask
     
+    
+
+img = torch.randn(4, 3, 128, 128).cuda()
+text = torch.randn(4, 3, 300).cuda()
+len_txt = torch.ones(4).cuda()
+
+# txt_m = torch.cat((txt[:, -1, :].unsqueeze(1), txt[:, :-1, :]), 1)
+# len_txt_m = torch.cat((len_txt[-1].unsqueeze(0), len_txt[:-1]))
+
+D = TAGAN_Discriminator()
+D = D.cuda()
+
+x, y = D(img , text, len_txt)
+
+print(x.size(), y.size())
+
+
+
+
     
