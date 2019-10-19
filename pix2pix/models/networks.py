@@ -407,13 +407,8 @@ class ResnetGenerator(nn.Module):
                         nn.ReLU(True)]
 
             self.model_recon = nn.Sequential(*model_recon)
-<<<<<<< HEAD
-            self.fc = nn.Linear(256 * 3 * 3, 100) #nn.Linear(256 * 7 * 7, 100)
-
-=======
             self.fc = nn.Linear(256 * 3 * 3, 300) #nn.Linear(256 * 7 * 7, 100)
 
->>>>>>> d65c0b6b269fa34f3726638a72ddd6a86af36599
         elif flag == 'encode':
 
             print("Encoding")
@@ -481,7 +476,7 @@ class ResnetGenerator(nn.Module):
             # self.txt_encoder_1 = nn.LSTM(100, 512, bidirection=True)
             # self.txt_encoder_2 = nn.LSTM(512, 512, bidirection=True)
             self.relu = nn.ReLU()
-            self.fc1 = nn.Linear(100, 512)
+            self.fc1 = nn.Linear(300, 512)
             self.fc2 = nn.Linear(512, 512)
             self.fc3 = nn.Linear(512, 64)
 
