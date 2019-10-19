@@ -96,6 +96,7 @@ class CycleGANModel(BaseModel):
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)  # define GAN loss.
             self.criterionCycle = torch.nn.L1Loss()
+            self.criterionCS = torch.nn.CosineSimilarity()
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -165,7 +166,7 @@ class CycleGANModel(BaseModel):
     def backward_D_TA(self):#To be changed
         """Calculate GAN loss for discriminator D_B"""
         fake_text = self.fake_text_pool.query(self.fake_T_B)
-        self.loss_D_T = self.backward_D_basic(self.netD_TA, (image,self.real_T_B, text_length), (image, fake_text,text_length))
+        self.loss_D_T = self.backward_D_basic(self.netD_TA, (self.real_B ,self.real_T_B, text_length), (image, fake_text,text_length))
 
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
@@ -185,15 +186,20 @@ class CycleGANModel(BaseModel):
             self.loss_idt_B = 0
 
         # GAN loss D_A(G_A(A))
-        self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True) + self.criterionTAGAN(self.netD_A(self.fake_B), True)
+        self.loss_G_A = self.criterionTAGAN(self.netD_A(self.fake_B), True)
+        #self.criterionGAN(self.netD_A(self.fake_B), True)
+        
         # GAN loss D_B(G_B(B))
-        self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True) + self.criterionGAN(self.netD_B(self.fake_T), True)
+        self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True) + self.criterionGAN(self.netD_T(self.fake_T), True)
+        
         # Forward cycle loss || G_B(G_A(A)) - A||
-        self.loss_cycle_A = (self.criterionCycle(self.rec_A, self.real_A) + self.criterionCycle(self.rec_T, self.real_T_A)) * lambda_A
+        self.loss_cycle_A = (self.criterionCycle(self.rec_A, self.real_A) + self.criterionCS(self.rec_T, self.real_T_A)) * lambda_A
+        
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+        
         # combined loss and calculate gradients
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
+        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B 
         self.loss_G.backward()
 
     def optimize_parameters(self):
