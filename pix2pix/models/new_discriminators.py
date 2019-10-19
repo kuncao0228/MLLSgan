@@ -76,8 +76,8 @@ class TAGAN_Discriminator(nn.Module):
         )
 
         # text feature
-        self.txt_encoder_f = nn.GRUCell(300, 512)
-        self.txt_encoder_b = nn.GRUCell(300, 512)
+        self.txt_encoder_f = nn.GRUCell(100, 512)
+        self.txt_encoder_b = nn.GRUCell(100, 512)
 
         self.gen_filter = nn.ModuleList([
             nn.Linear(512, 256 + 1),
@@ -155,9 +155,9 @@ class TAGAN_Discriminator(nn.Module):
     
     
 
-img = torch.randn(4, 3, 128, 128).cuda()
-text = torch.randn(4, 3, 300).cuda()
-len_txt = torch.ones(4).cuda()
+img = torch.randn(4, 3, 128, 128).cuda() #batch x channel x w x h
+text = torch.randn(5, 4, 100).cuda() #vocab size x batch x embed size
+len_txt = torch.ones(4).cuda() #no. of words per batch
 
 # txt_m = torch.cat((txt[:, -1, :].unsqueeze(1), txt[:, :-1, :]), 1)
 # len_txt_m = torch.cat((len_txt[-1].unsqueeze(0), len_txt[:-1]))
@@ -167,7 +167,7 @@ D = D.cuda()
 
 x, y = D(img , text, len_txt)
 
-print(x.size(), y.size())
+print(x, y)
 
 
 
