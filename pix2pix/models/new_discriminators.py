@@ -20,7 +20,7 @@ class TextDiscriminator(nn.Module):
         super(TextDiscriminator, self).__init__()
 
         self.model = nn.Sequential(
-            nn.Linear(100, 128),
+            nn.Linear(300, 128),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(128, 128),
             nn.LeakyReLU(0.2, inplace=True),
@@ -76,8 +76,8 @@ class TAGAN_Discriminator(nn.Module):
         )
 
         # text feature
-        self.txt_encoder_f = nn.GRUCell(100, 512)
-        self.txt_encoder_b = nn.GRUCell(100, 512)
+        self.txt_encoder_f = nn.GRUCell(300, 512)
+        self.txt_encoder_b = nn.GRUCell(300, 512)
 
         self.gen_filter = nn.ModuleList([
             nn.Linear(512, 256 + 1),

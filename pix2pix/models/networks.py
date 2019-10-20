@@ -3,8 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
-import new_discriminators
-import tagan_model
+from models.new_discriminators import TAGAN_Discriminator, TextDiscriminator
 ###############################################################################
 # Helper Functions
 ###############################################################################
