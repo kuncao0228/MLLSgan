@@ -22,10 +22,10 @@ class TextDiscriminator(nn.Module):
         self.model = nn.Sequential(
             nn.Linear(300, 128),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(128, 128),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(128, 1),
-            nn.Sigmoid(),
+            # nn.Linear(128, 128),
+            # nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(128, 1)
+            # nn.Sigmoid(),
         )
 
     def forward(self, text):
