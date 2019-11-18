@@ -23,7 +23,7 @@ from options.train_options import TrainOptions
 from data import create_dataset
 from models import create_model
 from tensorboardX import SummaryWriter
-# from util.visualizer import Visualizer
+from util.visualizer import Visualizer
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
-    # visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
+    visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
     writer = SummaryWriter()
     total_iters = 0                # the total number of training iterations
 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
             
             #print("hello: ", i)    
             
-            # visualizer.reset()
+            visualizer.reset()
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
             model.set_input(data)         # unpack data from dataset and apply preprocessing
@@ -70,19 +70,19 @@ if __name__ == '__main__':
                     
                     # writer.add_text('Text', 'text logged at step:' + str(n_iter), n_iter)
                 
-                # visualizer.display_current_results(model.get_current_visuals(), epoch, save_result)
+                visualizer.display_current_results(model.get_current_visuals(), epoch, save_result)
 
             if total_iters % opt.print_freq == 0:    # print training losses and save logging information to the disk
                 losses = model.get_current_losses()
-                print(losses)
+                # print(losses)
                 t_comp = (time.time() - iter_start_time) / opt.batch_size
                 
                 for k, v in losses.items():
                     writer.add_scalar(k, v, total_iters)
                 
-                # visualizer.print_current_losses(epoch, epoch_iter, losses, t_comp, t_data)
-                # if opt.display_id > 0:
-                #     visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, losses)
+                visualizer.print_current_losses(epoch, epoch_iter, losses, t_comp, t_data)
+                if opt.display_id > 0:
+                    visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, losses)
 
             if total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
                 print('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))

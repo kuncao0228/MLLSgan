@@ -97,7 +97,7 @@ class CycleGANModel(BaseModel):
             self.criterionCS = torch.nn.CosineSimilarity()
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
-            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr / 10.0, betas=(opt.beta1, 0.999))
+            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_B.parameters(), self.netD_T.parameters()), lr=opt.lr / 10.0, betas=(opt.beta1, 0.999))
             self.optimizer_D_TA = torch.optim.Adam(itertools.chain(self.netD_TA.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             
@@ -127,7 +127,8 @@ class CycleGANModel(BaseModel):
         self.fake_B = self.netG_A(self.real_A, self.real_T_A, flag="encode")  # G_A(A)
         self.rec_A, self.rec_T = self.netG_B(self.fake_B, self.real_T_A, flag="decode")   # G_B(G_A(A)) input text is unused
         self.fake_A, self.fake_T = self.netG_B(self.real_B, self.real_T_B, flag="decode")  # G_B(B) input text is unused
-        self.rec_B = self.netG_A(self.fake_A, self.fake_T, flag="encode")   # G_A(G_B(B))
+        #replaced fake_T with real_T_B
+        self.rec_B = self.netG_A(self.fake_A, self.real_T_B, flag="encode")   # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -218,6 +219,8 @@ class CycleGANModel(BaseModel):
 
         # GAN loss D_A(G_A(A))
         
+        self.applytext = 0.0
+        
         # print(self.real_B.size() ,self.real_T_A.size(), self.text_length.size())
         # exit()
         
@@ -227,11 +230,12 @@ class CycleGANModel(BaseModel):
 
         # GAN loss D_B(G_B(B))
         self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
-        self.loss_G_B_text = self.criterionGAN(self.netD_T(self.fake_T), True)
+
+        self.loss_G_B_text = self.criterionGAN(self.netD_T(self.fake_T), True) * self.applytext
 
         # Forward cycle loss || G_B(G_A(A)) - A||
         self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
-        self.loss_cycle_text = (1 - self.criterionCS(self.rec_T, self.real_T_A)) * lambda_A
+        self.loss_cycle_text = (1 - self.criterionCS(self.rec_T, self.real_T_A)) * lambda_A * self.applytext
 
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
@@ -255,7 +259,9 @@ class CycleGANModel(BaseModel):
         self.optimizer_D_TA.zero_grad()
         # self.backward_D_A()      # calculate gradients for D_A
         self.backward_D_B()      # calculate graidents for D_B
-        self.backward_D_T()
+        
+        # self.backward_D_T() COMMENTING OUT TO REMOVE TEXT RELEVANT BACKPROP IN DISCRIMINATOR
+        
         self.backward_D_TA()
         self.optimizer_D.step()  # update D_A and D_B's weights
         self.optimizer_D_TA.step()

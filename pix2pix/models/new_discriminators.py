@@ -3,6 +3,8 @@ import torch.nn as nn
 from torch.nn import init
 import numpy as np
 
+EPS = 1e-6
+
 def init_weights(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
         if m.weight.requires_grad:
@@ -104,7 +106,7 @@ class TAGAN_Discriminator(nn.Module):
         u, m, mask = self._encode_txt(txt, len_txt)
         att_txt = (u * m.unsqueeze(0)).sum(-1)
         att_txt_exp = att_txt.exp() * mask.squeeze(-1)
-        att_txt = (att_txt_exp / att_txt_exp.sum(0, keepdim=True))
+        att_txt = (att_txt_exp / (EPS + att_txt_exp.sum(0, keepdim=True)))
 
         weight = self.gen_weight(u).permute(2, 1, 0)
 
@@ -150,7 +152,7 @@ class TAGAN_Discriminator(nn.Module):
         h_f = torch.stack(h_f) * mask
         h_b = torch.stack(h_b[::-1])
         u = (h_f + h_b) / 2
-        m = u.sum(0) / mask.sum(0)
+        m = u.sum(0) / (EPS + mask.sum(0))
         return u, m, mask
 
 
