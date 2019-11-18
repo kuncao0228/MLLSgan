@@ -54,7 +54,7 @@ class CycleGANModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['D_TA', 'G_A', 'cycle_A', 'cycle_text', 'idt_A', 'D_B', 'D_T', 'G_B', 'cycle_B', 'idt_B', 'G_B_text']
+        self.loss_names = ['D_TA', 'G_A', 'cycle_A', 'cycle_text', 'idt_A', 'D_B', 'D_T', 'G_B', 'cycle_B', 'idt_B', 'G_B_text', 'D_tagan_first', 'D_tagan_second']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -174,6 +174,17 @@ class CycleGANModel(BaseModel):
         loss_D_dissimilar = self.criterionGAN(pred_real, True) + self.criterionGAN(pred_dissimilar, False)
         # Combined loss and calculate gradients
         loss_D = (loss_D_real + loss_D_fake + loss_D_dissimilar) * 0.33
+        
+        self.loss_D_tagan_first = loss_D_real + loss_D_fake
+        self.loss_D_tagan_dissimilar = loss_D_dissimilar
+        
+        if torch.isnan(loss_D):
+            print("NAN IN D adaptive")
+        if torch.isnan(self.loss_D_tagan_first):
+            print("NAN IN D adaptive first")
+        if torch.isnan(self.loss_D_tagan_second):
+            print("NAN IN D adaptive second")
+        
         loss_D.backward()
         return loss_D
 
@@ -186,11 +197,17 @@ class CycleGANModel(BaseModel):
         """Calculate GAN loss for discriminator D_B"""
         fake_A = self.fake_A_pool.query(self.fake_A)
         self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
+        
+        if torch.isnan(self.loss_D_B):
+            print("NAN IN D_B")      
 
     def backward_D_T(self):
         """Calculate GAN loss for discriminator D_T"""
         fake_text = self.fake_text_pool.query(self.fake_T)
         self.loss_D_T = self.backward_D_basic(self.netD_T, self.real_T_A, fake_text)
+        
+        if torch.isnan(self.loss_D_T):
+            print("NAN IN D_T")
 
     def backward_D_TA(self):#To be changed
         """Calculate GAN loss for discriminator D_B"""
@@ -198,6 +215,9 @@ class CycleGANModel(BaseModel):
         
         
         self.loss_D_TA = self.backward_Dadaptive(self.netD_TA, (self.real_B ,self.real_T_B.view(1, -1, 300), self.text_length), (fake_image, self.real_T_B.view(1, -1, 300), self.text_length), (self.real_B, self.text_B_wrong.view(1, -1, 300), self.text_length))
+        
+        if torch.isnan(self.loss_D_TA):
+            print("NAN IN D_TA")
 
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
@@ -235,6 +255,21 @@ class CycleGANModel(BaseModel):
 
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+
+        #nan checker
+        if torch.isnan(self.loss_G_A):
+            print("NAN IN G_A")
+        if torch.isnan(self.loss_G_B):
+            print("NAN IN G_B")
+        if torch.isnan(self.loss_G_B_text):
+            print("NAN IN G_B_text")
+        if torch.isnan(self.loss_cycle_A):
+            print("NAN IN cycle_A")
+        if torch.isnan(self.loss_cycle_text):
+            print("NAN IN cycle_text")
+        if torch.isnan(self.loss_cycle_B):
+            print("NAN IN cycle_B")
+            
 
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_cycle_text + self.loss_G_B_text
