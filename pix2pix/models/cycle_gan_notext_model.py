@@ -55,6 +55,7 @@ class CycleGANNoTextModel(BaseModel):
         BaseModel.__init__(self, opt)
         
         print("Using Cycle GAN no text!!!!!")
+        self.applytext = 0.0
         
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['D_TA', 'G_A', 'cycle_A', 'cycle_text', 'idt_A', 'D_B', 'D_T', 'G_B', 'cycle_B', 'idt_B', 'G_B_text']
@@ -194,7 +195,7 @@ class CycleGANNoTextModel(BaseModel):
     def backward_D_T(self):
         """Calculate GAN loss for discriminator D_T"""
         fake_text = self.fake_text_pool.query(self.fake_T)
-        self.loss_D_T = self.backward_D_basic(self.netD_T, self.real_T_A, fake_text)
+        self.loss_D_T = self.applytext * self.backward_D_basic(self.netD_T, self.real_T_A, fake_text)
 
     def backward_D_TA(self):#To be changed
         """Calculate GAN loss for discriminator D_B"""
@@ -222,7 +223,6 @@ class CycleGANNoTextModel(BaseModel):
 
         # GAN loss D_A(G_A(A))
         
-        self.applytext = 0.0
         
         # print(self.real_B.size() ,self.real_T_A.size(), self.text_length.size())
         # exit()
@@ -263,7 +263,7 @@ class CycleGANNoTextModel(BaseModel):
         # self.backward_D_A()      # calculate gradients for D_A
         self.backward_D_B()      # calculate graidents for D_B
         
-        # self.backward_D_T() COMMENTING OUT TO REMOVE TEXT RELEVANT BACKPROP IN DISCRIMINATOR
+        self.backward_D_T() COMMENTING OUT TO REMOVE TEXT RELEVANT BACKPROP IN DISCRIMINATOR
         
         self.backward_D_TA()
         self.optimizer_D.step()  # update D_A and D_B's weights
