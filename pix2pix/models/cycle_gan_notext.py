@@ -53,6 +53,9 @@ class CycleGANModel(BaseModel):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         BaseModel.__init__(self, opt)
+        
+        print("Using Cycle GAN no text!!!!!")
+        
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['D_TA', 'G_A', 'cycle_A', 'cycle_text', 'idt_A', 'D_B', 'D_T', 'G_B', 'cycle_B', 'idt_B', 'G_B_text']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
