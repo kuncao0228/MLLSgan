@@ -176,7 +176,7 @@ class CycleGANModel(BaseModel):
         loss_D = (loss_D_real + loss_D_fake + loss_D_dissimilar) * 0.33
         
         self.loss_D_tagan_first = loss_D_real + loss_D_fake
-        self.loss_D_tagan_dissimilar = loss_D_dissimilar
+        self.loss_D_tagan_second = loss_D_dissimilar
         
         if torch.isnan(loss_D):
             print("NAN IN D adaptive")
