@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
-from models.new_discriminators import TAGAN_Discriminator, TextDiscriminator
+from models.new_discriminators import TAGAN_Discriminator, TextDiscriminator, Sem_Discriminator
 ###############################################################################
 # Helper Functions
 ###############################################################################
@@ -153,8 +153,8 @@ def define_G(flag, input_nc, output_nc, ngf, netG, norm='batch', use_dropout=Fal
         net = UnetGenerator(flag, input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
         net = UnetGenerator(flag, input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    elif netG == 'tagan_128':
-        net = tagan_model.TAGAN_G()
+    # elif netG == 'tagan_128':
+    #     net = tagan_model.TAGAN_G()
 
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
@@ -202,6 +202,8 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
     elif netD == 'Text_Adaptive':
         net = TAGAN_Discriminator()
+    elif netD == 'Sem_Adaptive':
+        net = Sem_Discriminator()
     elif netD == 'Text':
         net = TextDiscriminator()
     else:

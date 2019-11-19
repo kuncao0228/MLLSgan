@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 from torch.nn import init
 import numpy as np
+import torchvision.models as models
+from torch.autograd import Variable
+import torch.nn.functional as F
 
 EPS = 1e-6
 
@@ -169,3 +172,111 @@ class TAGAN_Discriminator(nn.Module):
 # x, y = D(img , text, len_txt)
 #
 # print(x, y)
+
+class VisualSemanticEmbedding(nn.Module):
+    def __init__(self, embed_ndim):
+        super(VisualSemanticEmbedding, self).__init__()
+        self.embed_ndim = embed_ndim
+
+        # image feature
+        self.img_encoder = models.vgg16(pretrained=True)
+        for param in self.img_encoder.parameters():
+            param.requires_grad = False
+        self.feat_extractor = nn.Sequential(*(self.img_encoder.classifier[i] for i in range(6)))
+        self.W = nn.Linear(4096, embed_ndim, False)
+
+        # text feature
+        self.txt_encoder = nn.GRU(embed_ndim, embed_ndim, 1)
+
+    def forward(self, img, txt):
+        # image feature
+        img_feat = self.img_encoder.features(img)
+        img_feat = img_feat.view(img_feat.size(0), -1)
+        img_feat = self.feat_extractor(img_feat)
+        img_feat = self.W(img_feat)
+
+        # text feature
+        h0 = torch.zeros(1, img.size(0), self.embed_ndim)
+        h0 = Variable(h0.cuda() if txt.data.is_cuda else h0)
+        _, txt_feat = self.txt_encoder(txt, h0)
+        txt_feat = txt_feat.squeeze()
+
+        return img_feat, txt_feat
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self):
+        super(ResidualBlock, self).__init__()
+
+        self.encoder = nn.Sequential(
+            nn.Conv2d(512, 512, 3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, 3, padding=1, bias=False),
+            nn.BatchNorm2d(512)
+        )
+
+    def forward(self, x):
+        return F.relu(x + self.encoder(x))
+
+
+class Sem_Discriminator(nn.Module):
+    def __init__(self):
+        super(Sem_Discriminator, self).__init__()
+
+        print("Easier discriminator, please work")
+
+        self.encoder = nn.Sequential(
+            nn.Conv2d(3, 64, 4, 2, padding=1),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(64, 128, 4, 2, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(128, 256, 4, 2, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(256, 512, 4, 2, padding=1, bias=False),
+            nn.BatchNorm2d(512)
+        )
+
+        self.residual_branch = nn.Sequential(
+            nn.Conv2d(512, 128, 1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(128, 128, 3, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(128, 512, 3, padding=1, bias=False),
+            nn.BatchNorm2d(512)
+        )
+
+        self.classifier = nn.Sequential(
+            nn.Conv2d(512 + 128, 512, 1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(512, 1, 4)
+        )
+
+        self.compression = nn.Sequential(
+            nn.Linear(300, 128),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+
+        self.apply(init_weights)
+
+    def forward(self, img, txt_feat):
+        img_feat = self.encoder(img)
+        img_feat = F.leaky_relu(img_feat + self.residual_branch(img_feat), 0.2)
+        txt_feat = self.compression(txt_feat)
+
+        txt_feat = txt_feat.squeeze(1).unsqueeze(2).unsqueeze(3)
+        
+        # print(img_feat.size(), txt_feat.size())
+        
+        txt_feat = txt_feat.repeat(1, 1, img_feat.size(2), img_feat.size(3))
+        # print(txt_feat.size())
+        fusion = torch.cat((img_feat, txt_feat), dim=1)
+        # print(fusion.size())
+        # exit()
+        output = self.classifier(fusion)
+        return output.squeeze()
