@@ -241,7 +241,7 @@ class CycleGANAssymModel(BaseModel):
         self.loss_cycle_text = (1 - self.criterionCS(self.rec_T, self.real_T_A)) * lambda_A * self.applytext
 
         # Backward cycle loss || G_A(G_B(B)) - B||
-        self.loss_cycle_B = 0*self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+        self.loss_cycle_B = 0.1*self.criterionCycle(self.rec_B, self.real_B) * lambda_B
 
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_cycle_text + self.loss_G_B_text
