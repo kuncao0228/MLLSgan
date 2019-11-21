@@ -102,7 +102,7 @@ class CycleGANNAssymModel(BaseModel):
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_B.parameters(), self.netD_T.parameters()), lr=opt.lr / 10.0, betas=(opt.beta1, 0.999))
+            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_B.parameters(), self.netD_T.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_TA = torch.optim.Adam(itertools.chain(self.netD_TA.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
 
             self.optimizers.append(self.optimizer_G)
