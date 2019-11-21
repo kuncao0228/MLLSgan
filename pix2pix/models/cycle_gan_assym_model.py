@@ -6,7 +6,7 @@ from .base_model import BaseModel
 from . import networks
 
 
-class CycleGANAssymModel(BaseModel):
+class CycleGANNAssymModel(BaseModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
 
@@ -53,8 +53,12 @@ class CycleGANAssymModel(BaseModel):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         BaseModel.__init__(self, opt)
+
+        print("Using Cycle GAN no text!!!!!")
+        self.applytext = 0.0
+
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['D_TA', 'G_A', 'cycle_A', 'cycle_text', 'idt_A', 'D_B', 'D_T', 'G_B', 'cycle_B', 'idt_B', 'G_B_text', 'D_tagan_first', 'D_tagan_second']
+        self.loss_names = ['D_TA', 'G_A', 'cycle_A', 'cycle_text', 'idt_A', 'D_B', 'D_T', 'G_B', 'cycle_B', 'idt_B', 'G_B_text']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -97,7 +101,7 @@ class CycleGANAssymModel(BaseModel):
             self.criterionCS = torch.nn.CosineSimilarity()
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
-            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr / 10.0, betas=(opt.beta1, 0.999))
+            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_B.parameters(), self.netD_T.parameters()), lr=opt.lr / 10.0, betas=(opt.beta1, 0.999))
             self.optimizer_D_TA = torch.optim.Adam(itertools.chain(self.netD_TA.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
 
@@ -127,7 +131,8 @@ class CycleGANAssymModel(BaseModel):
         self.fake_B = self.netG_A(self.real_A, self.real_T_A, flag="encode")  # G_A(A)
         self.rec_A, self.rec_T = self.netG_B(self.fake_B, self.real_T_A, flag="decode")   # G_B(G_A(A)) input text is unused
         self.fake_A, self.fake_T = self.netG_B(self.real_B, self.real_T_B, flag="decode")  # G_B(B) input text is unused
-        self.rec_B = self.netG_A(self.fake_A, self.fake_T, flag="encode")   # G_A(G_B(B))
+        #replaced fake_T with real_T_B
+        self.rec_B = self.netG_A(self.fake_A, self.real_T_B, flag="encode")   # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -174,17 +179,6 @@ class CycleGANAssymModel(BaseModel):
         loss_D_dissimilar = self.criterionGAN(pred_real, True) + self.criterionGAN(pred_dissimilar, False)
         # Combined loss and calculate gradients
         loss_D = (loss_D_real + loss_D_fake + loss_D_dissimilar) * 0.33
-
-        self.loss_D_tagan_first = loss_D_real + loss_D_fake
-        self.loss_D_tagan_second = loss_D_dissimilar
-
-        if torch.isnan(loss_D):
-            print("NAN IN D adaptive")
-        if torch.isnan(self.loss_D_tagan_first):
-            print("NAN IN D adaptive first")
-        if torch.isnan(self.loss_D_tagan_second):
-            print("NAN IN D adaptive second")
-
         loss_D.backward()
         return loss_D
 
@@ -198,16 +192,10 @@ class CycleGANAssymModel(BaseModel):
         fake_A = self.fake_A_pool.query(self.fake_A)
         self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
 
-        if torch.isnan(self.loss_D_B):
-            print("NAN IN D_B")
-
     def backward_D_T(self):
         """Calculate GAN loss for discriminator D_T"""
         fake_text = self.fake_text_pool.query(self.fake_T)
-        self.loss_D_T = self.backward_D_basic(self.netD_T, self.real_T_A, fake_text)
-
-        if torch.isnan(self.loss_D_T):
-            print("NAN IN D_T")
+        self.loss_D_T = self.applytext * self.backward_D_basic(self.netD_T, self.real_T_A, fake_text)
 
     def backward_D_TA(self):#To be changed
         """Calculate GAN loss for discriminator D_B"""
@@ -215,9 +203,6 @@ class CycleGANAssymModel(BaseModel):
 
 
         self.loss_D_TA = self.backward_Dadaptive(self.netD_TA, (self.real_B ,self.real_T_B.view(1, -1, 300), self.text_length), (fake_image, self.real_T_B.view(1, -1, 300), self.text_length), (self.real_B, self.text_B_wrong.view(1, -1, 300), self.text_length))
-
-        if torch.isnan(self.loss_D_TA):
-            print("NAN IN D_TA")
 
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
@@ -238,6 +223,7 @@ class CycleGANAssymModel(BaseModel):
 
         # GAN loss D_A(G_A(A))
 
+
         # print(self.real_B.size() ,self.real_T_A.size(), self.text_length.size())
         # exit()
 
@@ -247,29 +233,15 @@ class CycleGANAssymModel(BaseModel):
 
         # GAN loss D_B(G_B(B))
         self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
-        self.loss_G_B_text = self.criterionGAN(self.netD_T(self.fake_T), True)
+
+        self.loss_G_B_text = self.criterionGAN(self.netD_T(self.fake_T), True) * self.applytext
 
         # Forward cycle loss || G_B(G_A(A)) - A||
         self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
-        self.loss_cycle_text = (1 - self.criterionCS(self.rec_T, self.real_T_A)) * lambda_A
+        self.loss_cycle_text = (1 - self.criterionCS(self.rec_T, self.real_T_A)) * lambda_A * self.applytext
 
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = 0*self.criterionCycle(self.rec_B, self.real_B) * lambda_B
-
-        #nan checker
-        if torch.isnan(self.loss_G_A):
-            print("NAN IN G_A")
-        if torch.isnan(self.loss_G_B):
-            print("NAN IN G_B")
-        if torch.isnan(self.loss_G_B_text):
-            print("NAN IN G_B_text")
-        if torch.isnan(self.loss_cycle_A):
-            print("NAN IN cycle_A")
-        if torch.isnan(self.loss_cycle_text):
-            print("NAN IN cycle_text")
-        if torch.isnan(self.loss_cycle_B):
-            print("NAN IN cycle_B")
-
 
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_cycle_text + self.loss_G_B_text
@@ -290,7 +262,9 @@ class CycleGANAssymModel(BaseModel):
         self.optimizer_D_TA.zero_grad()
         # self.backward_D_A()      # calculate gradients for D_A
         self.backward_D_B()      # calculate graidents for D_B
-        self.backward_D_T()
+
+        self.backward_D_T() #COMMENTING OUT TO REMOVE TEXT RELEVANT BACKPROP IN DISCRIMINATOR
+
         self.backward_D_TA()
         self.optimizer_D.step()  # update D_A and D_B's weights
         self.optimizer_D_TA.step()
