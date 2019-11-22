@@ -56,7 +56,7 @@ class CycleGANAssymModel(BaseModel):
 
         print("Using Cycle GAN no text!!!!!")
         self.applytext = 0.0
-
+        self.epoch = 0
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['D_TA', 'G_A', 'cycle_A', 'cycle_text', 'idt_A', 'D_B', 'D_T', 'G_B', 'cycle_B', 'idt_B', 'G_B_text']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
@@ -101,12 +101,20 @@ class CycleGANAssymModel(BaseModel):
             self.criterionCS = torch.nn.CosineSimilarity()
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
-            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_G_A = torch.optim.Adam(itertools.chain(self.netG_A.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_G_B = torch.optim.Adam(itertools.chain(self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_B.parameters(), self.netD_T.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_TA = torch.optim.Adam(itertools.chain(self.netD_TA.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
 
-            self.optimizers.append(self.optimizer_G)
+            self.optimizers.append(self.optimizer_G_A)
+            self.optimizers.append(self.optimizer_G_B)
             self.optimizers.append(self.optimizer_D)
+            self.optimizers.append(self.optimizer_D_TA)
+
+    def incr_epoch(self):
+        self.epoch+=1
+        print("self.Epoch:", self.epoch)
+
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -178,7 +186,7 @@ class CycleGANAssymModel(BaseModel):
         pred_real, pred_dissimilar = netD(*dissimilar)
         loss_D_dissimilar = self.criterionGAN(pred_real, True) + self.criterionGAN(pred_dissimilar, False)
         # Combined loss and calculate gradients
-        loss_D = (loss_D_real + loss_D_fake + loss_D_dissimilar) * 0.33
+        loss_D = (loss_D_real + loss_D_fake + 0.2*loss_D_dissimilar) * 0.33
         loss_D.backward()
         return loss_D
 
@@ -241,7 +249,7 @@ class CycleGANAssymModel(BaseModel):
         self.loss_cycle_text = (1 - self.criterionCS(self.rec_T, self.real_T_A)) * lambda_A * self.applytext
 
         # Backward cycle loss || G_A(G_B(B)) - B||
-        self.loss_cycle_B = 0.1*self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+        self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
 
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_cycle_text + self.loss_G_B_text
@@ -253,9 +261,12 @@ class CycleGANAssymModel(BaseModel):
         self.forward()      # compute fake images and reconstruction images.
         # G_A and G_B
         self.set_requires_grad([self.netD_B, self.netD_T, self.netD_TA], False)  # Ds require no gradients when optimizing Gs
-        self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
+        self.optimizer_G_A.zero_grad()  # set G_A and G_B's gradients to zero
+        self.optimizer_G_B.zero_grad()
         self.backward_G()             # calculate gradients for G_A and G_B
-        self.optimizer_G.step()       # update G_A and G_B's weights
+        self.optimizer_G_A.step()       # update G_A and G_B's weights
+        if self.epoch<5:
+            self.optimizer_G_B.step()
         # D_A and D_B
         self.set_requires_grad([self.netD_B, self.netD_T, self.netD_TA], True)
         self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
@@ -266,5 +277,6 @@ class CycleGANAssymModel(BaseModel):
         self.backward_D_T() #COMMENTING OUT TO REMOVE TEXT RELEVANT BACKPROP IN DISCRIMINATOR
 
         self.backward_D_TA()
-        self.optimizer_D.step()  # update D_A and D_B's weights
+        if self.epoch<5:
+            self.optimizer_D.step()  # update D_A and D_B's weights
         self.optimizer_D_TA.step()
