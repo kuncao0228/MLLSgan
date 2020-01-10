@@ -102,7 +102,7 @@ class CycleGANNoTextModel(BaseModel):
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_B.parameters(), self.netD_T.parameters()), lr=opt.lr / 10.0, betas=(opt.beta1, 0.999))
+            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_B.parameters(), self.netD_T.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_TA = torch.optim.Adam(itertools.chain(self.netD_TA.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             
             self.optimizers.append(self.optimizer_G)
@@ -167,18 +167,19 @@ class CycleGANNoTextModel(BaseModel):
         Return the discriminator loss.
         We also call loss_D.backward() to calculate the gradients.
         """
+        weight_similar = 1.0 #CHANGED TEXT ADAPTIVE TO ZERO - SHIVAM
         # Real
         pred_real, pred_similar = netD(*real)
-        loss_D_real = self.criterionGAN(pred_real, True) + self.criterionGAN(pred_similar, True)
+        loss_D_real = self.criterionGAN(pred_real, True) + self.criterionGAN(pred_similar, True)*weight_similar
         # Fake
         pred_fake, _ = netD(*fake)
         loss_D_fake = self.criterionGAN(pred_fake, False)
 
         #dissimilar
         pred_real, pred_dissimilar = netD(*dissimilar)
-        loss_D_dissimilar = self.criterionGAN(pred_real, True) + self.criterionGAN(pred_dissimilar, False)
+        loss_D_dissimilar = self.criterionGAN(pred_real, True) + self.criterionGAN(pred_dissimilar, False)*weight_similar
         # Combined loss and calculate gradients
-        loss_D = (loss_D_real + loss_D_fake + loss_D_dissimilar) * 0.33
+        loss_D = (loss_D_real + loss_D_fake + loss_D_dissimilar*weight_similar) * 0.33 #0.33
         loss_D.backward()
         return loss_D
 

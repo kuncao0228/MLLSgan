@@ -408,7 +408,7 @@ class ResnetGenerator(nn.Module):
                         nn.ReLU(True)]
 
             self.model_recon = nn.Sequential(*model_recon)
-            self.fc = nn.Linear(256 * 3 * 3, 300) #nn.Linear(256 * 7 * 7, 100)
+            self.fc = nn.Linear(256 * 7 * 7, 300) #nn.Linear(256 * 7 * 7, 100)
 
         elif flag == 'encode':
 
@@ -451,7 +451,7 @@ class ResnetGenerator(nn.Module):
             for i in range(n_downsampling):  # add upsampling layers
                 mult = 2 ** (n_downsampling - i)
 
-                if i == 0:
+                if i == 0:#0
                     model4 += [nn.ConvTranspose2d(320, int(ngf * mult / 2),
                                             kernel_size=3, stride=2,
                                             padding=1, output_padding=1,
@@ -501,6 +501,7 @@ class ResnetGenerator(nn.Module):
             merge = torch.cat((x3, y), 1)
 
             x = self.model4(merge)
+#             x = self.model4(x3)
 
             return x
 
@@ -515,7 +516,7 @@ class ResnetGenerator(nn.Module):
             recon = self.model_recon(x2)
 
             # print(recon.size())
-            recon = recon.view(-1, 256 * 3 * 3) #recon.view(-1, 256 * 7 * 7)
+            recon = recon.view(-1, 256 * 7 * 7) #recon.view(-1, 256 * 7 * 7)
             recon = self.fc(recon)
 
             return x, recon

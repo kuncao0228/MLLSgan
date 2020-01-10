@@ -265,7 +265,7 @@ class CycleGANAssymModel(BaseModel):
         self.optimizer_G_B.zero_grad()
         self.backward_G()             # calculate gradients for G_A and G_B
         self.optimizer_G_A.step()       # update G_A and G_B's weights
-        if self.epoch<5:
+        if self.epoch<1:
             self.optimizer_G_B.step()
         # D_A and D_B
         self.set_requires_grad([self.netD_B, self.netD_T, self.netD_TA], True)
@@ -277,6 +277,6 @@ class CycleGANAssymModel(BaseModel):
         self.backward_D_T() #COMMENTING OUT TO REMOVE TEXT RELEVANT BACKPROP IN DISCRIMINATOR
 
         self.backward_D_TA()
-        if self.epoch<5:
+        if self.epoch<1:
             self.optimizer_D.step()  # update D_A and D_B's weights
         self.optimizer_D_TA.step()
