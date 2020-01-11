@@ -6,7 +6,7 @@ from .base_model import BaseModel
 from . import networks
 
 
-class CycleGANNoTextModel(BaseModel):
+class DATAGANModel(BaseModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
 
