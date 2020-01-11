@@ -24,6 +24,8 @@ from data import create_dataset
 from models import create_model
 from tensorboardX import SummaryWriter
 from util.visualizer import Visualizer
+import itertools
+import copy
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
@@ -32,7 +34,12 @@ if __name__ == '__main__':
     print('The number of training images = %d' % dataset_size)
 
     # print("workers: ", dataset.num_workers)
-
+    opt_test = copy.deepcopy(opt)
+    opt_test.phase = 'test'
+    dataset_test = create_dataset(opt_test)
+    dataset_test_size = len(dataset_test)    # get the number of images in the dataset.
+    test_iter = itertools.cycle(dataset_test) 
+    print('The number of testing images = %d' % dataset_test_size)
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
     visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
@@ -59,6 +66,8 @@ if __name__ == '__main__':
 
             if total_iters % opt.display_freq == 0:   # display images on visdom and save images to a HTML file
                 save_result = total_iters % opt.update_html_freq == 0
+                model.set_input(next(test_iter)) 
+                model.test()
                 model.compute_visuals()
                 imgs = model.get_current_visuals()
 
