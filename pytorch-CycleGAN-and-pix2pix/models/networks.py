@@ -626,6 +626,7 @@ class Network_hed(torch.nn.Module):
     def __init__(self):
         super(Network_hed, self).__init__()
 
+        arguments_strModel = 'bsds500'
         self.moduleVggOne = torch.nn.Sequential(
             torch.nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(inplace=False),
