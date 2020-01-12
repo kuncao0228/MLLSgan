@@ -160,7 +160,12 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
 
 
 def define_hed(init_type='normal', init_gain=0.02, gpu_ids=[]):
-    return init_net(Network_hed(), init_type, init_gain, gpu_ids)
+    net = Network_hed()
+    if len(gpu_ids) > 0:
+        assert(torch.cuda.is_available())
+        net.to(gpu_ids[0])
+        net = torch.nn.DataParallel(net, gpu_ids)
+    return net
 
 def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[]):
     """Create a discriminator
@@ -619,7 +624,7 @@ class PixelDiscriminator(nn.Module):
 
 class Network_hed(torch.nn.Module):
     def __init__(self):
-        super(Network, self).__init__()
+        super(Network_hed, self).__init__()
 
         self.moduleVggOne = torch.nn.Sequential(
             torch.nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1),
@@ -708,4 +713,3 @@ class Network_hed(torch.nn.Module):
         return self.moduleCombine(torch.cat([ tensorScoreOne, tensorScoreTwo, tensorScoreThr, tensorScoreFou, tensorScoreFiv ], 1))
     # end
 # end
-
