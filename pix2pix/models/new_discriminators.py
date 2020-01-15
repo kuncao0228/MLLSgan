@@ -95,6 +95,8 @@ class TAGAN_Discriminator(nn.Module):
         )
 
         self.classifier = nn.Conv2d(512, 1, 4)
+#         self.classifier2 = nn.Conv2d(512, 1, 4)
+#         self.classifier3 = nn.Conv2d(512, 1, 4)
 #         self.classifier = nn.Conv2d(512, 1, 16)
 
         self.apply(init_weights)
@@ -104,8 +106,9 @@ class TAGAN_Discriminator(nn.Module):
         img_feat_2 = self.encoder_2(img_feat_1)
         img_feat_3 = self.encoder_3(img_feat_2)
         img_feats = [self.GAP_1(img_feat_1), self.GAP_2(img_feat_2), self.GAP_3(img_feat_3)]
+#         D = (self.classifier1(img_feat_1).squeeze(), self.classifier2(img_feat_2).squeeze(),\
+#                          self.classifier3(img_feat_3).squeeze())
         D = self.classifier(img_feat_3).squeeze()
-#         D = self.classifier(img_feat_2).squeeze()
 
         # text attention
         u, m, mask = self._encode_txt(txt, len_txt)

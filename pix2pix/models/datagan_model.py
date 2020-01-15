@@ -58,7 +58,8 @@ class DATAGANModel(BaseModel):
         self.applytext = 0.0
         
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['D_TA', 'G_A', 'cycle_A', 'cycle_text', 'idt_A', 'D_B', 'D_T', 'G_B', 'cycle_B', 'idt_B', 'G_B_text']
+        self.loss_names = ['D_TA', 'G_A', 'cycle_A', 'cycle_text', 'idt_A', 'D_B', 'D_T', 'G_B', \
+                           'cycle_B', 'idt_B', 'G_B_text']#, 'D_edge']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -69,7 +70,7 @@ class DATAGANModel(BaseModel):
         self.visual_names = visual_names_A + visual_names_B  # combine visualizations for A and B
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
         if self.isTrain:
-            self.model_names = ['G_A', 'G_B', 'D_TA', 'D_B', 'D_T']
+            self.model_names = ['G_A', 'G_B', 'D_TA', 'D_B', 'D_T']#, 'D_edge']
         else:  # during test time, only load Gs
             self.model_names = ['G_A', 'G_B']
 
@@ -80,10 +81,14 @@ class DATAGANModel(BaseModel):
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         self.netG_B = networks.define_G('decode', opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-
+        self.dncnn = networks.define_dncnn(opt.init_type, opt.init_gain, self.gpu_ids, 1, 1)
+#         self.hed = networks.define_hed(opt.init_type, opt.init_gain, self.gpu_ids)
+        
         if self.isTrain:  # define discriminators
             self.netD_B = networks.define_D(opt.input_nc, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
+#             self.netD_edge = networks.define_D(1, opt.ndf, opt.netD,
+#                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
             self.netD_TA = networks.define_D(opt.input_nc, opt.ndf, 'Text_Adaptive',
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
             self.netD_T = networks.define_D(opt.input_nc, opt.ndf, 'Text',
@@ -102,11 +107,12 @@ class DATAGANModel(BaseModel):
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_B.parameters(), self.netD_T.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_B.parameters(), self.netD_T.parameters(),), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D_TA = torch.optim.Adam(itertools.chain(self.netD_TA.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+            self.optimizers.append(self.optimizer_D_TA)
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -170,14 +176,16 @@ class DATAGANModel(BaseModel):
         weight_similar = 1.0 #CHANGED TEXT ADAPTIVE TO ZERO - SHIVAM
         # Real
         pred_real, pred_similar = netD(*real)
-        loss_D_real = self.criterionGAN(pred_real, True) + self.criterionGAN(pred_similar, True)*weight_similar
+        loss_D_real = self.criterionGAN(pred_real, True) + \
+                            self.criterionGAN(pred_similar, True)*weight_similar
         # Fake
         pred_fake, _ = netD(*fake)
-        loss_D_fake = self.criterionGAN(pred_fake, False)
+        loss_D_fake =  self.criterionGAN(pred_fake, True)
 
         #dissimilar
         pred_real, pred_dissimilar = netD(*dissimilar)
-        loss_D_dissimilar = self.criterionGAN(pred_real, True) + self.criterionGAN(pred_dissimilar, False)*weight_similar
+        loss_D_dissimilar =  self.criterionGAN(pred_real, True) + \
+                                 self.criterionGAN(pred_dissimilar, False)*weight_similar
         # Combined loss and calculate gradients
         loss_D = (loss_D_real + loss_D_fake + loss_D_dissimilar*weight_similar) * 0.33 #0.33
         loss_D.backward()
@@ -205,6 +213,14 @@ class DATAGANModel(BaseModel):
         
         self.loss_D_TA = self.backward_Dadaptive(self.netD_TA, (self.real_B ,self.real_T_B.view(1, -1, 300), self.text_length), (fake_image, self.real_T_B.view(1, -1, 300), self.text_length), (self.real_B, self.text_B_wrong.view(1, -1, 300), self.text_length))
 
+#     def backward_D_edge(self):
+#         """Calculate GAN loss for discriminator D_B"""
+#         fake_B = self.fake_B_pool.query(self.fake_B)
+#         fake_edge = self.hed(self.fake_B* (1.0 / 255.0))*255.0
+#         real_edge = self.hed(self.real_B* (1.0 / 255.0))*255.0
+#         self.loss_D_edge = self.backward_D_basic(self.netD_edge, real_edge, fake_edge)* self.applytext
+        
+        
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_identity
@@ -229,7 +245,9 @@ class DATAGANModel(BaseModel):
         # exit()
         
         real,similar = self.netD_TA(self.fake_B, self.real_T_A.view(1, -1, 300), self.text_length)
-        self.loss_G_A = self.criterionGAN(real, True) + self.criterionGAN(similar, True)
+        self.loss_G_A =  self.criterionGAN(real, True) + \
+                                self.criterionGAN(similar, True) #+ \
+#                             self.criterionGAN(self.hed(self.fake_B* (1.0 / 255.0))*255.0,True) * self.applytext
         #self.criterionGAN(self.netD_A(self.fake_B), True)
 
         # GAN loss D_B(G_B(B))
@@ -267,5 +285,6 @@ class DATAGANModel(BaseModel):
         self.backward_D_T() #COMMENTING OUT TO REMOVE TEXT RELEVANT BACKPROP IN DISCRIMINATOR
         
         self.backward_D_TA()
+#         self.backward_D_edge()
         self.optimizer_D.step()  # update D_A and D_B's weights
         self.optimizer_D_TA.step()

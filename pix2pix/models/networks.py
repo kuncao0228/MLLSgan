@@ -4,6 +4,7 @@ from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
 from models.new_discriminators import TAGAN_Discriminator, TextDiscriminator, Sem_Discriminator
+import models.basicblock as B
 ###############################################################################
 # Helper Functions
 ###############################################################################
@@ -210,7 +211,21 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
     return init_net(net, init_type, init_gain, gpu_ids)
 
+def define_hed(init_type='normal', init_gain=0.02, gpu_ids=[]):
+    net = Network_hed()
+    if len(gpu_ids) > 0:
+        assert(torch.cuda.is_available())
+        net.to(gpu_ids[0])
+        net = torch.nn.DataParallel(net, gpu_ids)
+    return net
 
+def define_dncnn(init_type='normal', init_gain=0.02, gpu_ids=[], in_nc=1, out_nc=1, nc=64, nb=17, act_mode='BR'):
+    net = DnCNN(in_nc, out_nc, nc, nb, act_mode)
+    if len(gpu_ids) > 0:
+        assert(torch.cuda.is_available())
+        net.to(gpu_ids[0])
+        net = torch.nn.DataParallel(net, gpu_ids)
+    return net
 ##############################################################################
 # Classes
 ##############################################################################
@@ -761,3 +776,129 @@ class PixelDiscriminator(nn.Module):
     def forward(self, input):
         """Standard forward."""
         return self.net(input)
+
+class Network_hed(torch.nn.Module):
+    def __init__(self):
+        super(Network_hed, self).__init__()
+
+        arguments_strModel = 'bsds500'
+        self.moduleVggOne = torch.nn.Sequential(
+            torch.nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False)
+        )
+
+        self.moduleVggTwo = torch.nn.Sequential(
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False)
+        )
+
+        self.moduleVggThr = torch.nn.Sequential(
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False)
+        )
+
+        self.moduleVggFou = torch.nn.Sequential(
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False)
+        )
+
+        self.moduleVggFiv = torch.nn.Sequential(
+            torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False),
+            torch.nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(inplace=False)
+        )
+
+        self.moduleScoreOne = torch.nn.Conv2d(in_channels=64, out_channels=1, kernel_size=1, stride=1, padding=0)
+        self.moduleScoreTwo = torch.nn.Conv2d(in_channels=128, out_channels=1, kernel_size=1, stride=1, padding=0)
+        self.moduleScoreThr = torch.nn.Conv2d(in_channels=256, out_channels=1, kernel_size=1, stride=1, padding=0)
+        self.moduleScoreFou = torch.nn.Conv2d(in_channels=512, out_channels=1, kernel_size=1, stride=1, padding=0)
+        self.moduleScoreFiv = torch.nn.Conv2d(in_channels=512, out_channels=1, kernel_size=1, stride=1, padding=0)
+
+        self.moduleCombine = torch.nn.Sequential(
+            torch.nn.Conv2d(in_channels=5, out_channels=1, kernel_size=1, stride=1, padding=0),
+            torch.nn.Sigmoid()
+        )
+
+        self.load_state_dict(torch.load('./network-' + arguments_strModel + '.pytorch'))
+    # end
+
+    def forward(self, tensorInput):
+        tensorBlue = (tensorInput[:, 0:1, :, :] * 255.0) - 104.00698793
+        tensorGreen = (tensorInput[:, 1:2, :, :] * 255.0) - 116.66876762
+        tensorRed = (tensorInput[:, 2:3, :, :] * 255.0) - 122.67891434
+
+        tensorInput = torch.cat([ tensorBlue, tensorGreen, tensorRed ], 1)
+
+        tensorVggOne = self.moduleVggOne(tensorInput)
+        tensorVggTwo = self.moduleVggTwo(tensorVggOne)
+        tensorVggThr = self.moduleVggThr(tensorVggTwo)
+        tensorVggFou = self.moduleVggFou(tensorVggThr)
+        tensorVggFiv = self.moduleVggFiv(tensorVggFou)
+
+        tensorScoreOne = self.moduleScoreOne(tensorVggOne)
+        tensorScoreTwo = self.moduleScoreTwo(tensorVggTwo)
+        tensorScoreThr = self.moduleScoreThr(tensorVggThr)
+        tensorScoreFou = self.moduleScoreFou(tensorVggFou)
+        tensorScoreFiv = self.moduleScoreFiv(tensorVggFiv)
+
+        tensorScoreOne = torch.nn.functional.interpolate(input=tensorScoreOne, size=(tensorInput.size(2), tensorInput.size(3)), mode='bilinear', align_corners=False)
+        tensorScoreTwo = torch.nn.functional.interpolate(input=tensorScoreTwo, size=(tensorInput.size(2), tensorInput.size(3)), mode='bilinear', align_corners=False)
+        tensorScoreThr = torch.nn.functional.interpolate(input=tensorScoreThr, size=(tensorInput.size(2), tensorInput.size(3)), mode='bilinear', align_corners=False)
+        tensorScoreFou = torch.nn.functional.interpolate(input=tensorScoreFou, size=(tensorInput.size(2), tensorInput.size(3)), mode='bilinear', align_corners=False)
+        tensorScoreFiv = torch.nn.functional.interpolate(input=tensorScoreFiv, size=(tensorInput.size(2), tensorInput.size(3)), mode='bilinear', align_corners=False)
+
+        return self.moduleCombine(torch.cat([ tensorScoreOne, tensorScoreTwo, tensorScoreThr, tensorScoreFou, tensorScoreFiv ], 1))
+    # end
+# end
+
+class DnCNN(nn.Module):
+    def __init__(self, in_nc=1, out_nc=1, nc=64, nb=17, act_mode='BR'):
+        """
+        # ------------------------------------
+        in_nc: channel number of input
+        out_nc: channel number of output
+        nc: channel number
+        nb: total number of conv layers
+        act_mode: batch norm + activation function; 'BR' means BN+ReLU.
+        # ------------------------------------
+        Batch normalization and residual learning are
+        beneficial to Gaussian denoising (especially
+        for a single noise level).
+        The residual of a noisy image corrupted by additive white
+        Gaussian noise (AWGN) follows a constant
+        Gaussian distribution which stablizes batch
+        normalization during training.
+        # ------------------------------------
+        """
+        super(DnCNN, self).__init__()
+        assert 'R' in act_mode or 'L' in act_mode, 'Examples of activation function: R, L, BR, BL, IR, IL'
+        bias = True
+
+        m_head = B.conv(in_nc, nc, mode='C'+act_mode[-1], bias=bias)
+        m_body = [B.conv(nc, nc, mode='C'+act_mode, bias=bias) for _ in range(nb-2)]
+        m_tail = B.conv(nc, out_nc, mode='C', bias=bias)
+
+        self.model = B.sequential(m_head, *m_body, m_tail)
+
+    def forward(self, x):
+        n = self.model(x)
+        return x-n

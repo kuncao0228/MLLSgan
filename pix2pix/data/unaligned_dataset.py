@@ -36,12 +36,12 @@ class UnalignedDataset(BaseDataset):
         
         # self.embed_data_A = {}
         
-        with open(self.dir_A+'/embed.pkl', 'rb') as file: # change with proper file name
+        with open(self.dir_A+'/FULL_ATTRIBUTES.pkl', 'rb') as file: # change with proper file name
             self.embed_data_A = pickle.load(file)
 
         time.sleep(10)
 
-        print("HELLO")
+        print("HELLO-new change1")
         # print("hi")
         self.embed_data_B = self.embed_data_A
         # print("hi3")
@@ -78,14 +78,14 @@ class UnalignedDataset(BaseDataset):
             index_B = random.randint(0, self.B_size - 1)
         B_path = self.B_paths[index_B]
         # pdb.set_trace()
-        text_A = self.embed_data_A[A_path.split("/")[-1]] # change to for a and b
-        text_B = self.embed_data_B[B_path.split("/")[-1]] # change to for a and b
+        text_A = np.array(self.embed_data_A[A_path.split("/")[-1]][1]) # change to for a and b
+        text_B = np.array(self.embed_data_B[B_path.split("/")[-1]][1]) # change to for a and b
         text_B_wrong = text_B.copy()
 
         while np.array_equal(text_B, text_B_wrong):
             index_B = (index_B + 1)%self.B_size
             B_path_wrong = self.B_paths[index_B]
-            text_B_wrong = self.embed_data_B[B_path_wrong.split("/")[-1]]
+            text_B_wrong = self.embed_data_B[B_path_wrong.split("/")[-1]][1]
 
         # print("hi1")
         A_img = Image.open(A_path).convert('RGB')
