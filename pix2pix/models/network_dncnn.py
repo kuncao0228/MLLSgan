@@ -1,4 +1,4 @@
-
+import torch
 import torch.nn as nn
 import models.basicblock as B
 
@@ -64,6 +64,7 @@ class DnCNN(nn.Module):
         m_tail = B.conv(nc, out_nc, mode='C', bias=bias)
 
         self.model = B.sequential(m_head, *m_body, m_tail)
+        self.model.load_state_dict(torch.load("dncnn3.pth"), strict=True)
 
     def forward(self, x):
         n = self.model(x)

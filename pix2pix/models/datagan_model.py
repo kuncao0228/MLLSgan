@@ -81,7 +81,7 @@ class DATAGANModel(BaseModel):
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         self.netG_B = networks.define_G('decode', opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-        self.dncnn = networks.define_dncnn(opt.init_type, opt.init_gain, self.gpu_ids, 1, 1)
+        self.dncnn = networks.define_dncnn(opt.init_type, opt.init_gain, self.gpu_ids, 3, 3)
 #         self.hed = networks.define_hed(opt.init_type, opt.init_gain, self.gpu_ids)
         
         if self.isTrain:  # define discriminators
@@ -138,7 +138,7 @@ class DATAGANModel(BaseModel):
         self.rec_A, self.rec_T = self.netG_B(self.fake_B, self.real_T_A, flag="decode")   # G_B(G_A(A)) input text is unused
         self.fake_A, self.fake_T = self.netG_B(self.real_B, self.real_T_B, flag="decode")  # G_B(B) input text is unused
         #replaced fake_T with real_T_B
-        self.rec_B = self.netG_A(self.fake_A, self.real_T_B, flag="encode")   # G_A(G_B(B))
+        self.rec_B = self.netG_A(self.dncnn(self.fake_A), self.real_T_B, flag="encode")   # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
