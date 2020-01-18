@@ -36,7 +36,7 @@ class UnalignedDataset(BaseDataset):
         
         # self.embed_data_A = {}
         
-        with open(self.dir_A+'/FULL_ATTRIBUTES.pkl', 'rb') as file: # change with proper file name
+        with open(opt.dataroot+'/../FULL_ATTRIBUTES_50.pkl', 'rb') as file: # change with proper file name
             self.embed_data_A = pickle.load(file)
 
         time.sleep(10)
@@ -78,15 +78,18 @@ class UnalignedDataset(BaseDataset):
             index_B = random.randint(0, self.B_size - 1)
         B_path = self.B_paths[index_B]
         # pdb.set_trace()
-        text_A = np.array(self.embed_data_A[A_path.split("/")[-1]][1]) # change to for a and b
-        text_B = np.array(self.embed_data_B[B_path.split("/")[-1]][1]) # change to for a and b
+        text_A = np.array(self.embed_data_A[A_path.split("/")[-1]][1],dtype=np.float32) # change to for a and b
+        text_B = np.array(self.embed_data_B[B_path.split("/")[-1]][1],dtype=np.float32) # change to for a and b
         text_B_wrong = text_B.copy()
+        text_A_len = len(self.embed_data_A[A_path.split("/")[-1]][0].split(" "))
+        text_B_len = len(self.embed_data_A[B_path.split("/")[-1]][0].split(" "))
+        text_B_wrong_len = len(self.embed_data_A[B_path.split("/")[-1]][0].split(" "))
 
         while np.array_equal(text_B, text_B_wrong):
             index_B = (index_B + 1)%self.B_size
             B_path_wrong = self.B_paths[index_B]
-            text_B_wrong = self.embed_data_B[B_path_wrong.split("/")[-1]][1]
-
+            text_B_wrong = np.array(self.embed_data_B[B_path_wrong.split("/")[-1]][1], dtype=np.float32)
+            text_B_wrong_len = len(self.embed_data_A[B_path_wrong.split("/")[-1]][0].split(" "))
         # print("hi1")
         A_img = Image.open(A_path).convert('RGB')
         B_img = Image.open(B_path).convert('RGB')
@@ -95,7 +98,7 @@ class UnalignedDataset(BaseDataset):
         A = self.transform_A(A_img)
         B = self.transform_B(B_img)
 
-        return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path,  'text_A':text_A, 'text_B':text_B, 'text_B_wrong': text_B_wrong}
+        return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path,  'text_A':text_A, 'text_B':text_B, 'text_B_wrong': text_B_wrong, 'text_A_len':text_A_len, 'text_B_len':text_B_len, 'text_B_wrong_len': text_B_wrong_len}
 
     def __len__(self):
         """Return the total number of images in the dataset.

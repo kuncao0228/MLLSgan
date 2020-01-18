@@ -154,6 +154,8 @@ def define_G(flag, input_nc, output_nc, ngf, netG, norm='batch', use_dropout=Fal
         net = UnetGenerator(flag, input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
         net = UnetGenerator(flag, input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+    elif netG == 'tagan':
+        net = TAGAN_Generator(flag)
     # elif netG == 'tagan_128':
     #     net = tagan_model.TAGAN_G()
 
@@ -492,9 +494,10 @@ class ResnetGenerator(nn.Module):
             # self.txt_encoder_1 = nn.LSTM(100, 512, bidirection=True)
             # self.txt_encoder_2 = nn.LSTM(512, 512, bidirection=True)
             self.relu = nn.ReLU()
-            self.fc1 = nn.Linear(300, 512)
-            self.fc2 = nn.Linear(512, 512)
-            self.fc3 = nn.Linear(512, 64)
+#             self.fc1 = nn.Linear(300, 512)
+#             self.fc2 = nn.Linear(512, 512)
+#             self.fc3 = nn.Linear(512, 64)
+            self.txt_encoder_f = nn.GRUCell(300, 512)
 
     def forward(self, input, txt, flag='encode'):
         """Standard forward"""
@@ -506,9 +509,9 @@ class ResnetGenerator(nn.Module):
             x3 = self.model3(x2)
 
             txt_data = txt
-            y = self.relu(self.fc1(txt))
-            y = self.relu(self.fc2(y))
-            y = self.relu(self.fc3(y))
+            len_txt = 50
+#             y = self.txt_encoder_f(txt)
+            u, m, mask = self._encode_txt(txt, len_txt)
 
             y = y.view(1, 64, 1, 1)
             y = y.repeat(1, 1, x3.size(2), x3.size(3))
@@ -535,6 +538,151 @@ class ResnetGenerator(nn.Module):
             recon = self.fc(recon)
 
             return x, recon
+        
+    def _encode_txt(self, txt, len_txt):
+        hi_f = torch.zeros(txt.size(1), 512, device=txt.device)
+        hi_b = torch.zeros(txt.size(1), 512, device=txt.device)
+        h_f = []
+        h_b = []
+        mask = []
+        for i in range(txt.size(0)):
+            mask_i = (txt.size(0) - 1 - i < len_txt).float().unsqueeze(1)
+            mask.append(mask_i)
+            hi_f = self.txt_encoder_f(txt[i], hi_f)
+            h_f.append(hi_f)
+            hi_b = mask_i * self.txt_encoder_b(txt[-i - 1], hi_b) + (1 - mask_i) * hi_b
+            h_b.append(hi_b)
+        mask = torch.stack(mask[::-1])
+        h_f = torch.stack(h_f) * mask
+        h_b = torch.stack(h_b[::-1])
+        u = (h_f + h_b) / 2
+        m = u.sum(0) / (EPS + mask.sum(0))
+        return u, m, mask
+    
+class ResidualBlock(nn.Module):
+    def __init__(self, ndim):
+        super(ResidualBlock, self).__init__()
+
+        self.encoder = nn.Sequential(
+            nn.Conv2d(ndim, ndim, 3, padding=1, bias=False),
+            nn.BatchNorm2d(ndim),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(ndim, ndim, 3, padding=1, bias=False),
+            nn.BatchNorm2d(ndim)
+        )
+
+    def forward(self, x):
+        return x + self.encoder(x)
+    
+class TAGAN_Generator(nn.Module,):
+    def __init__(self, flag='encode'):
+        super(TAGAN_Generator, self).__init__()
+
+        # encoder
+        self.encoder = nn.Sequential(
+            nn.Conv2d(3, 64, 3, 1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 128, 4, 2, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 256, 4, 2, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 512, 4, 2, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True)
+        )
+
+        # residual blocks
+        if flag == 'encode':
+            self.residual_blocks = nn.Sequential(
+                nn.Conv2d(512 + 128, 512, 3, padding=1, bias=False),
+                nn.BatchNorm2d(512),
+                nn.ReLU(inplace=True),
+                ResidualBlock(512),
+                ResidualBlock(512),
+                ResidualBlock(512),
+                ResidualBlock(512)
+            )
+
+        # decoder
+        self.decoder = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(512, 256, 3, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(256, 128, 3, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(128, 64, 3, padding=1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 3, 3, padding=1),
+            nn.Tanh()
+        )
+
+        # conditioning augmentation
+        self.mu = nn.Sequential(
+            nn.Linear(512, 128),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+        self.log_sigma = nn.Sequential(
+            nn.Linear(512, 128),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+
+        self.txt_encoder_f = nn.GRUCell(300, 512)
+        self.txt_encoder_b = nn.GRUCell(300, 512)
+
+        self.apply(init_weights)
+
+    def forward(self, img, txt=None, flag='encode'):
+        # image encoder
+        e = self.encoder(img)
+
+        if flag == 'encode':
+            # text encoder
+            if type(txt) is not tuple:
+                raise TypeError('txt must be tuple (txt_data, txt_len).')
+
+            txt_data = txt[0]
+            txt_len = txt[1]
+
+            hi_f = torch.zeros(txt_data.size(1), 512, device=txt_data.device)
+            hi_b = torch.zeros(txt_data.size(1), 512, device=txt_data.device)
+            h_f = []
+            h_b = []
+            mask = []
+            for i in range(txt_data.size(0)):
+                mask_i = (txt_data.size(0) - 1 - i < txt_len).float().unsqueeze(1)
+                mask.append(mask_i)
+                hi_f = self.txt_encoder_f(txt_data[i], hi_f)
+                h_f.append(hi_f)
+                hi_b = mask_i * self.txt_encoder_b(txt_data[-i - 1], hi_b) + (1 - mask_i) * hi_b
+                h_b.append(hi_b)
+            mask = torch.stack(mask[::-1])
+            h_f = torch.stack(h_f) * mask
+            h_b = torch.stack(h_b[::-1])
+            h = (h_f + h_b) / 2
+            cond = h.sum(0) / mask.sum(0)
+
+            z_mean = self.mu(cond)
+            z_log_stddev = self.log_sigma(cond)
+            z = torch.randn(cond.size(0), 128, device=txt_data.device)
+            cond = z_mean + z_log_stddev.exp() * z
+
+            # residual blocks
+            cond = cond.unsqueeze(-1).unsqueeze(-1)
+            merge = self.residual_blocks(torch.cat((e, cond.repeat(1, 1, e.size(2), e.size(3))), 1))
+
+            # decoder
+            d = self.decoder(e + merge)
+            return d, (z_mean, z_log_stddev)
+        else:
+            d = self.decoder(e)
+        return d
 
 class ResnetBlock(nn.Module):
     """Define a Resnet block"""
