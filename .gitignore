@@ -1,2 +1,8 @@
 datasets/
 .ipynb_checkpoints/
+ropingGeneratorsData/Train_AB
+ropingGeneratorsData/Train_AB.zip
+ropingGeneratorsData/cropped/
+ropingGeneratorsData/data/
+textEmbeddingProcessing/FULL_ATTRIBUTES_50.pkl
+

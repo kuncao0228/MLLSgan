@@ -75,7 +75,6 @@ if __name__ == '__main__':
                 for k, v in imgs.items():
 
                     v = v.squeeze(0)
-                    print(v.shape)
                     writer.add_image(k, v, total_iters)
 
                     # writer.add_text('Text', 'text logged at step:' + str(n_iter), n_iter)
