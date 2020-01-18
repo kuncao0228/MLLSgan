@@ -53,8 +53,6 @@ class DATAGANModel(BaseModel):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         BaseModel.__init__(self, opt)
-        
-        print("Using Cycle GAN no text!!!!!")
         self.applytext = 0.0
         self.weight_similar = 5.0
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
