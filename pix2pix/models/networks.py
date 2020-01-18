@@ -578,6 +578,8 @@ class TAGAN_Generator(nn.Module,):
     def __init__(self, flag='encode'):
         super(TAGAN_Generator, self).__init__()
 
+        self.eps = 1e-7
+
         # encoder
         self.encoder = nn.Sequential(
             nn.Conv2d(3, 64, 3, 1, padding=1),
@@ -666,7 +668,7 @@ class TAGAN_Generator(nn.Module,):
             h_f = torch.stack(h_f) * mask
             h_b = torch.stack(h_b[::-1])
             h = (h_f + h_b) / 2
-            cond = h.sum(0) / mask.sum(0)
+            cond = h.sum(0) / (EPS + mask.sum(0))
 
             z_mean = self.mu(cond)
             z_log_stddev = self.log_sigma(cond)

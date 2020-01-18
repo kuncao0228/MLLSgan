@@ -26,6 +26,7 @@ from tensorboardX import SummaryWriter
 from util.visualizer import Visualizer
 import itertools
 import copy
+import torch
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
@@ -45,7 +46,7 @@ if __name__ == '__main__':
     visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
     writer = SummaryWriter()
     total_iters = 0                # the total number of training iterations
-
+    torch.set_num_threads(7)
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
         epoch_start_time = time.time()  # timer for entire epoch
         iter_data_time = time.time()    # timer for data loading per iteration
