@@ -111,6 +111,8 @@ class TAGAN_Discriminator(nn.Module):
         D = self.classifier(img_feat_3).squeeze()
 
         # text attention
+        if len_txt==0:
+            print("Text Length is zero")
         u, m, mask = self._encode_txt(txt, len_txt)
         att_txt = (u * m.unsqueeze(0)).sum(-1)
         att_txt_exp = att_txt.exp() * mask.squeeze(-1)

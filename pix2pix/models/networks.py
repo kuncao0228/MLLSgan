@@ -13,6 +13,7 @@ import models.basicblock as B
 class Identity(nn.Module):
     def forward(self, x):
         return x
+EPS = 1e-6
 
 
 def get_norm_layer(norm_type='instance'):
@@ -651,7 +652,8 @@ class TAGAN_Generator(nn.Module,):
 
             txt_data = txt[0]
             txt_len = txt[1]
-
+            if txt_len==0:
+                print("Text Length is zero")
             hi_f = torch.zeros(txt_data.size(1), 512, device=txt_data.device)
             hi_b = torch.zeros(txt_data.size(1), 512, device=txt_data.device)
             h_f = []
